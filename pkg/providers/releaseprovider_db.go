@@ -46,13 +46,11 @@ func (p *DatabaseReleaseProvider) GetReleases(group string, repo string, maxRele
 	rows, err := c.Query(context.Background(), "SELECT release_tag, release_time FROM releases WHERE group = $1 AND repo = $2 ORDER BY release_time DESC LIMIT $3",
 		group, repo, maxReleases)
 
-	if rows != nil {
-		defer rows.Close()
-	}
-
 	if err != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	releaseList := &release.ReleaseList{
 		Group:    group,
@@ -72,4 +70,22 @@ func (p *DatabaseReleaseProvider) GetReleases(group string, repo string, maxRele
 	}
 
 	return releaseList, nil
+}
+
+func (p *DatabaseReleaseProvider) RecordReleases(group string, repo string, releases *release.ReleaseList) error {
+	c, err := p.pool.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for _, release := range releases.Releases {
+		_, err := c.Exec(context.Background(), "INSERT INTO releases (group, repo, release_tag, release_time) VALUES ($1, $2, $3, $4)" +
+			"ON CONFLICT (group, repo, release_tag) DO UPDATE SET release_time = $4",
+			group, repo, release.Version, release.ReleaseDate)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

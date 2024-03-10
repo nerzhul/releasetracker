@@ -51,3 +51,7 @@ func (p *GithubReleaseProvider) GetReleases(group string, repo string, maxReleas
 	return releasesList, nil
 }
 
+func (p *GithubReleaseProvider) RecordReleases(group string, repo string, releases *release.ReleaseList) error {
+	// noop
+	return nil
+}
