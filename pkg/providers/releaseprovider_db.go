@@ -13,14 +13,20 @@ type DatabaseReleaseProvider struct {
 	pool *pgxpool.Pool
 }
 
-func NewDatabaseReleaseProvider() *DatabaseReleaseProvider {
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+func NewDatabaseReleaseProvider(databaseURL string) *DatabaseReleaseProvider {
+	// TODO: think about db migration
+	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
 
 	c, err := pool.Acquire(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to acquire connection from pool: %v\n", err)
+		os.Exit(1)
+	}
+
 	if err := c.Ping(context.Background()); err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to ping database: %v\n", err)
 		os.Exit(1)
