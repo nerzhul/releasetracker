@@ -37,14 +37,26 @@ func NewDatabaseReleaseProvider(databaseURL string) *DatabaseReleaseProvider {
 	}
 }
 
-func (p *DatabaseReleaseProvider) GetReleases(group string, repo string, maxReleases int) (*release.ReleaseList, error) {
+func (p *DatabaseReleaseProvider) GetReleases(provider string, group string, repo string, maxReleases int) (*release.ReleaseList, error) {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := c.Query(context.Background(), "SELECT release_tag, release_time FROM releases WHERE group = $1 AND repo = $2 ORDER BY release_time DESC LIMIT $3",
-		group, repo, maxReleases)
+	providerID, err := p.getProviderID(provider, group, repo)
+	if err != nil {
+		return nil, err
+	}
+
+	releaseList := &release.ReleaseList{
+		Provider: provider,
+		Group:    group,
+		Repo:     repo,
+		Releases: make([]release.Release, 0),
+	}
+
+	rows, err := c.Query(context.Background(), "SELECT release_version, release_time FROM releases WHERE provider_id = $1 ORDER BY release_time DESC LIMIT $2",
+		providerID, maxReleases)
 
 	if err != nil {
 		return nil, err
@@ -52,11 +64,6 @@ func (p *DatabaseReleaseProvider) GetReleases(group string, repo string, maxRele
 
 	defer rows.Close()
 
-	releaseList := &release.ReleaseList{
-		Group:    group,
-		Repo:     repo,
-		Releases: make([]release.Release, 0),
-	}
 
 	for rows.Next() {
 		release := release.Release{}
@@ -72,20 +79,94 @@ func (p *DatabaseReleaseProvider) GetReleases(group string, repo string, maxRele
 	return releaseList, nil
 }
 
-func (p *DatabaseReleaseProvider) RecordReleases(group string, repo string, releases *release.ReleaseList) error {
+func (p *DatabaseReleaseProvider) RecordReleases(provider string, group string, repo string, releases *release.ReleaseList) error {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
 		return err
 	}
 
+	providerID, err := p.getOrCreateProviderID(provider, group, repo)
+	if err != nil {
+		return err
+	}
+
 	for _, release := range releases.Releases {
-		_, err := c.Exec(context.Background(), "INSERT INTO releases (group, repo, release_tag, release_time) VALUES ($1, $2, $3, $4)" +
-			"ON CONFLICT (group, repo, release_tag) DO UPDATE SET release_time = $4",
-			group, repo, release.Version, release.ReleaseDate)
+		_, err := c.Exec(context.Background(), "INSERT INTO releases (provider_id, release_tag, release_time) VALUES ($1, $2, $3)" +
+			"ON CONFLICT (provider_id, release_tag) DO UPDATE SET release_time = $3",
+			providerID, release.Version, release.ReleaseDate)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (p* DatabaseReleaseProvider) getProviderID(provider string, group string, repo string) (string, error) {
+	c, err := p.pool.Acquire(context.Background())
+	if err != nil {
+		return "", err
+	}
+
+	provRows, err := c.Query(context.Background(), "SELECT id FROM releaseproviders WHERE provider = $1 AND group = $2 AND repo = $3",
+		provider, group, repo)
+
+	if err != nil {
+		return "", err
+	}
+
+	defer provRows.Close()
+
+	if !provRows.Next() {
+		return "", nil
+	}
+
+	var providerID string
+
+	err = provRows.Scan(&providerID)
+	if err != nil {
+		return "", err
+	}
+
+	return providerID, nil
+}
+
+func (p* DatabaseReleaseProvider) createProvider(provider string, group string, repo string) (string, error) {
+	c, err := p.pool.Acquire(context.Background())
+	if err != nil {
+		return "", err
+	}
+
+	rows, err := c.Query(context.Background(), "INSERT INTO releaseproviders (provider, group, repo) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING id",
+		provider, group, repo)
+	if err != nil {
+		return "", err
+	}
+
+	defer rows.Close()
+
+	if rows.Next() {
+		var providerID string
+		err = rows.Scan(&providerID)
+		if err != nil {
+			return "", err
+		}
+
+		return providerID, nil
+	}
+
+	return "", fmt.Errorf("failed to create release provider")
+}
+
+func (p* DatabaseReleaseProvider) getOrCreateProviderID(provider string, group string, repo string) (string, error) {
+	providerID, err := p.getProviderID(provider, group, repo)
+	if err != nil {
+		return "", err
+	}
+
+	if providerID == "" {
+		return p.createProvider(provider, group, repo)
+	}
+
+	return providerID, nil
 }

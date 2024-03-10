@@ -8,6 +8,11 @@ import (
 	"github.com/nerzhul/releasetracker/pkg/release"
 )
 
+const (
+	// githubReleaseProviderName is the name of the github release provider
+	githubReleaseProviderName = "github"
+)
+
 type GithubReleaseProvider struct{
 	client *github.Client
 }
@@ -18,7 +23,7 @@ func NewGithubReleaseProvider() *GithubReleaseProvider {
 	}
 }
 
-func (p *GithubReleaseProvider) GetReleases(group string, repo string, maxReleases int) (*release.ReleaseList, error) {
+func (p *GithubReleaseProvider) GetReleases(_ string, group string, repo string, maxReleases int) (*release.ReleaseList, error) {
 	ghReleases, resp, err := p.client.Repositories.ListReleases(context.TODO(), group, repo, &github.ListOptions{
 		PerPage: maxReleases,
 	})
@@ -33,6 +38,7 @@ func (p *GithubReleaseProvider) GetReleases(group string, repo string, maxReleas
 	releasesList := &release.ReleaseList{
 		Group: group,
 		Repo: repo,
+		Provider: githubReleaseProviderName,
 		Releases: make([]release.Release, 0),
 	}
 
@@ -51,7 +57,7 @@ func (p *GithubReleaseProvider) GetReleases(group string, repo string, maxReleas
 	return releasesList, nil
 }
 
-func (p *GithubReleaseProvider) RecordReleases(group string, repo string, releases *release.ReleaseList) error {
+func (p *GithubReleaseProvider) RecordReleases(provider string, group string, repo string, releases *release.ReleaseList) error {
 	// noop
 	return nil
 }

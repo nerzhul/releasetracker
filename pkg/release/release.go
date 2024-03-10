@@ -6,6 +6,7 @@ type Release struct {
 }
 
 type ReleaseList struct {
+	Provider string
 	Group string
 	Repo string
 	Releases []Release
