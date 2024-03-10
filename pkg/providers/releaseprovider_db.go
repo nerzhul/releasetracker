@@ -37,21 +37,29 @@ func NewDatabaseReleaseProvider(databaseURL string) *DatabaseReleaseProvider {
 	}
 }
 
-func (p *DatabaseReleaseProvider) GetReleases(provider string, group string, repo string, maxReleases int) (*release.ReleaseList, error) {
+func (p *DatabaseReleaseProvider) Conn(ctx context.Context) (*pgxpool.Conn, error) {
+	return p.pool.Acquire(ctx)
+}
+
+func (p *DatabaseReleaseProvider) GetReleases(providerName string, group string, repo string, maxReleases int) (*release.ReleaseList, error) {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
-	providerID, err := p.getProviderID(provider, group, repo)
+	defer c.Release()
+
+	providerID, err := p.getProviderID(providerName, group, repo)
 	if err != nil {
 		return nil, err
 	}
 
 	releaseList := &release.ReleaseList{
-		Provider: provider,
-		Group:    group,
-		Repo:     repo,
+		Metadata: release.ReleaseMetadata{
+			Provider: providerName,
+			Group:    group,
+			Repo:     repo,
+		},
 		Releases: make([]release.Release, 0),
 	}
 
@@ -63,7 +71,6 @@ func (p *DatabaseReleaseProvider) GetReleases(provider string, group string, rep
 	}
 
 	defer rows.Close()
-
 
 	for rows.Next() {
 		release := release.Release{}
@@ -85,13 +92,15 @@ func (p *DatabaseReleaseProvider) RecordReleases(provider string, group string, 
 		return err
 	}
 
+	defer c.Release()
+
 	providerID, err := p.getOrCreateProviderID(provider, group, repo)
 	if err != nil {
 		return err
 	}
 
 	for _, release := range releases.Releases {
-		_, err := c.Exec(context.Background(), "INSERT INTO releases (provider_id, release_tag, release_time) VALUES ($1, $2, $3)" +
+		_, err := c.Exec(context.Background(), "INSERT INTO releases (provider_id, release_tag, release_time) VALUES ($1, $2, $3)"+
 			"ON CONFLICT (provider_id, release_tag) DO UPDATE SET release_time = $3",
 			providerID, release.Version, release.ReleaseDate)
 		if err != nil {
@@ -102,13 +111,15 @@ func (p *DatabaseReleaseProvider) RecordReleases(provider string, group string, 
 	return nil
 }
 
-func (p* DatabaseReleaseProvider) getProviderID(provider string, group string, repo string) (string, error) {
+func (p *DatabaseReleaseProvider) getProviderID(provider string, group string, repo string) (string, error) {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
 		return "", err
 	}
 
-	provRows, err := c.Query(context.Background(), "SELECT id FROM releaseproviders WHERE provider = $1 AND group = $2 AND repo = $3",
+	defer c.Release()
+
+	provRows, err := c.Query(context.Background(), "SELECT id FROM release_providers WHERE provider = $1 AND group_name = $2 AND repo_name = $3",
 		provider, group, repo)
 
 	if err != nil {
@@ -131,13 +142,14 @@ func (p* DatabaseReleaseProvider) getProviderID(provider string, group string, r
 	return providerID, nil
 }
 
-func (p* DatabaseReleaseProvider) createProvider(provider string, group string, repo string) (string, error) {
+func (p *DatabaseReleaseProvider) createProvider(provider string, group string, repo string) (string, error) {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
 		return "", err
 	}
 
-	rows, err := c.Query(context.Background(), "INSERT INTO releaseproviders (provider, group, repo) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING id",
+	rows, err := c.Query(context.Background(), "INSERT INTO release_providers (provider_name, group_name, repo_name) " +
+		"VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING id",
 		provider, group, repo)
 	if err != nil {
 		return "", err
@@ -158,7 +170,7 @@ func (p* DatabaseReleaseProvider) createProvider(provider string, group string, 
 	return "", fmt.Errorf("failed to create release provider")
 }
 
-func (p* DatabaseReleaseProvider) getOrCreateProviderID(provider string, group string, repo string) (string, error) {
+func (p *DatabaseReleaseProvider) getOrCreateProviderID(provider string, group string, repo string) (string, error) {
 	providerID, err := p.getProviderID(provider, group, repo)
 	if err != nil {
 		return "", err

@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	// githubReleaseProviderName is the name of the github release provider
-	githubReleaseProviderName = "github"
+	// GithubReleaseProviderName is the name of the github release provider
+	GithubReleaseProviderName = "github"
 )
 
-type GithubReleaseProvider struct{
+type GithubReleaseProvider struct {
 	client *github.Client
 }
 
@@ -36,9 +36,11 @@ func (p *GithubReleaseProvider) GetReleases(_ string, group string, repo string,
 	}
 
 	releasesList := &release.ReleaseList{
-		Group: group,
-		Repo: repo,
-		Provider: githubReleaseProviderName,
+		Metadata: release.ReleaseMetadata{
+			Group:    group,
+			Repo:     repo,
+			Provider: GithubReleaseProviderName,
+		},
 		Releases: make([]release.Release, 0),
 	}
 
@@ -50,7 +52,7 @@ func (p *GithubReleaseProvider) GetReleases(_ string, group string, repo string,
 		}
 
 		releasesList.Releases = append(releasesList.Releases, release.Release{
-			Version: *ghRelease.TagName,
+			Version:     *ghRelease.TagName,
 			ReleaseDate: ghRelease.PublishedAt.Format("2006-01-02"),
 		})
 	}
