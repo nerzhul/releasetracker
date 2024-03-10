@@ -1,16 +1,12 @@
 package main
 
 import (
-	"os"
-
 	"github.com/nerzhul/releasetracker/pkg/releasesyncer"
+	"github.com/nerzhul/releasetracker/pkg/utils"
 )
 
 func main() {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		panic("DATABASE_URL environment variable is not set")
-	}
+	databaseURL := utils.GetEnvOrDefault("DATABASE_URL", "postgres://postgres:password@localhost:5432/releasetracker?sslmode=disable")
 
 	syncer := releasesyncer.NewReleaseSyncer(databaseURL)
 	err := syncer.SyncReleases()
