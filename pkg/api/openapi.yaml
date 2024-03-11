@@ -1,0 +1,13 @@
+---
+openapi: "3.1.0"
+info:
+  title: Release Tracker API Documentation
+  description: |
+    This API exposes comprehensible and intelligent informations on objects,
+    security, config audits...
+  contact:
+    name: "Platform Team"
+    url: "https://veepee.slack.com/archives/CEMG2B146"
+  version: 1.0.0
+servers: []
+paths:
