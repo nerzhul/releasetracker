@@ -16,11 +16,13 @@ import (
 
 type ReleaseTracker struct {
 	listerningPort int
+	databaseURL    string
 }
 
-func NewReleaseTracker(port int) *ReleaseTracker {
+func NewReleaseTracker(port int, databaseURL string) *ReleaseTracker {
 	return &ReleaseTracker{
 		listerningPort: port,
+		databaseURL:    databaseURL,
 	}
 }
 
@@ -38,7 +40,7 @@ func (r *ReleaseTracker) Run() error {
 	p := prometheus.NewPrometheus("echo", nil)
 	p.Use(e)
 
-	myAPI := api.NewReleaseTrackerAPI(logger)
+	myAPI := api.NewReleaseTrackerAPI(logger, r.databaseURL)
 	api.RegisterHandlers(e, myAPI)
 
 	// TODO: CORS

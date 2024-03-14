@@ -86,6 +86,56 @@ func (p *DatabaseReleaseProvider) GetReleases(providerName string, group string,
 	return releaseList, nil
 }
 
+func (p *DatabaseReleaseProvider) SubscribeReleases(provider string, group string, repo string) error {
+	c, err := p.pool.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+
+	defer c.Release()
+
+	providerID, err := p.getOrCreateProviderID(provider, group, repo)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Exec(context.Background(), "INSERT INTO releases_subscriptions (provider_id) VALUES ($1) ON CONFLICT DO NOTHING",
+		providerID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *DatabaseReleaseProvider) HasSubscribedToReleases(provider string, group string, repo string) (bool, error) {
+	c, err := p.pool.Acquire(context.Background())
+	if err != nil {
+		return false, err
+	}
+
+	defer c.Release()
+
+	providerID, err := p.getProviderID(provider, group, repo)
+	if err != nil {
+		return false, err
+	}
+
+	if providerID == "" {
+		return false, nil
+	}
+
+	rows, err := c.Query(context.Background(), "SELECT provider_id FROM releases_subscriptions WHERE provider_id = $1",
+		providerID)
+	if err != nil {
+		return false, err
+	}
+
+	defer rows.Close()
+
+	return rows.Next(), nil
+}
+
 func (p *DatabaseReleaseProvider) RecordReleases(provider string, group string, repo string, releases *release.ReleaseList) error {
 	c, err := p.pool.Acquire(context.Background())
 	if err != nil {
