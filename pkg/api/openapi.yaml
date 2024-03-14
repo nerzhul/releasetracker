@@ -11,3 +11,70 @@ info:
   version: 1.0.0
 servers: []
 paths:
+  /v1/repo/subscribe/{provider}/{group}/{repo}:
+    post:
+      summary: "Subscribe to a repository"
+      description: "Subscribe to a repository with given provider, group and repository"
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "The provider of the repository"
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "The group of the repository"
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "The repository"
+      responses:
+        '201':
+          description: "Repository subscribed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOnlyReponse"
+        '400':
+          description: "Invalid request"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReponse"
+  # healthchecks
+  /v1/health/readyz:
+    get:
+      summary: "Check if the API is ready"
+      responses:
+        '200':
+          description: "API is ready"
+        '503':
+          description: "API is not ready"
+components:
+  schemas:
+    StatusOnlyReponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: "Status"
+    ErrorReponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          description: "Status"
+        message:
+          type: string
+          description: "Error message"
